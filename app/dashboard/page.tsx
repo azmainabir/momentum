@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getBoards } from "@/lib/actions/boards";
 import SignOutButton from "./SignOutButton";
+import BoardGrid from "./BoardGrid";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -13,9 +15,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const { boards } = await getBoards();
+
   return (
     <main className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-surface">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -55,20 +58,15 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      {/* Content */}
       <div className="max-w-6xl mx-auto px-6 py-10">
         <h1 className="text-3xl font-bold text-text-primary mb-2">
           Your Boards
         </h1>
         <p className="text-text-secondary mb-8">
-          Welcome back! You are signed in successfully.
+          Create a board to start organizing your tasks.
         </p>
 
-        <div className="bg-surface border border-border rounded-2xl p-10 text-center">
-          <p className="text-text-secondary">
-            Board creation coming next — this confirms auth works!
-          </p>
-        </div>
+        <BoardGrid boards={boards} />
       </div>
     </main>
   );
