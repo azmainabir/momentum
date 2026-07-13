@@ -63,33 +63,28 @@ export default function BoardGrid({ boards }: { boards: Board[] }) {
         {boards.map((board) => (
           <div
             key={board.id}
-            onClick={() => router.push(`/board/${board.id}`)}
-            className="h-32 bg-surface border border-border rounded-2xl p-5 cursor-pointer hover:border-primary transition-all duration-200 flex flex-col justify-between group"
+            className="relative h-32 bg-surface border border-border rounded-2xl hover:border-primary transition-all duration-200 group overflow-hidden"
           >
-            <div className="flex items-start justify-between">
-              <h3 className="text-text-primary font-semibold text-lg truncate">
+            <button
+              onClick={() => router.push(`/board/${board.id}`)}
+              className="absolute inset-0 w-full h-full p-5 flex flex-col justify-between text-left select-none"
+            >
+              <h3 className="text-text-primary font-semibold text-lg truncate pointer-events-none">
                 {board.title}
               </h3>
-              <button
-                onClick={(e) => handleDelete(e, board.id)}
-                className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 transition-all duration-200"
-                title="Delete board"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
-                </svg>
-              </button>
-            </div>
-            <p className="text-text-secondary text-xs">
-              Created {new Date(board.created_at).toLocaleDateString()}
-            </p>
+              <p className="text-text-secondary text-xs pointer-events-none">
+                Created {new Date(board.created_at).toLocaleDateString()}
+              </p>
+            </button>
+            <button
+              onClick={(e) => handleDelete(e, board.id)}
+              className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 transition-all duration-200"
+              title="Delete board"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
+              </svg>
+            </button>
           </div>
         ))}
       </div>
