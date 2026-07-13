@@ -21,6 +21,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import CardModal from "./CardModal";
 
 type List = {
   id: string;
@@ -48,10 +49,12 @@ const priorityColors = {
 function CardItem({
   card,
   onDelete,
+  onClick,
   isOverlay,
 }: {
   card: Card;
   onDelete?: (id: string) => void;
+  onClick?: () => void;
   isOverlay?: boolean;
 }) {
   const {
@@ -83,7 +86,15 @@ function CardItem({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-text-primary text-sm leading-snug">{card.title}</p>
+        <p
+          className="text-text-primary text-sm leading-snug flex-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+        >
+          {card.title}
+        </p>
         {onDelete && (
           <button
             onClick={(e) => {
@@ -106,12 +117,28 @@ function CardItem({
           </button>
         )}
       </div>
-      <div className="mt-2">
+      <div className="mt-2 flex items-center gap-2">
         <span
           className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${priorityColors[card.priority]}`}
         >
           {card.priority}
         </span>
+        {card.due_date && (
+          <span className="text-[10px] text-text-secondary flex items-center gap-1">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            {new Date(card.due_date).toLocaleDateString()}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -152,6 +179,7 @@ export default function BoardView({
   const [lists] = useState<List[]>(initialLists);
   const [cards, setCards] = useState<Card[]>(initialCards);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
+  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [addingCardTo, setAddingCardTo] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
 
@@ -188,6 +216,10 @@ export default function BoardView({
     }
   };
 
+  const handleUpdateCard = (updated: Card) => {
+    setCards(cards.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const card = cards.find((c) => c.id === event.active.id);
     if (card) setActiveCard(card);
@@ -204,7 +236,6 @@ export default function BoardView({
     const activeCard = cards.find((c) => c.id === activeId);
     if (!activeCard) return;
 
-    // Dropping over a list (empty area)
     const overList = lists.find((l) => l.id === overId);
     if (overList && activeCard.list_id !== overList.id) {
       setCards((prev) =>
@@ -215,7 +246,6 @@ export default function BoardView({
       return;
     }
 
-    // Dropping over another card
     const overCard = cards.find((c) => c.id === overId);
     if (overCard && activeCard.list_id !== overCard.list_id) {
       setCards((prev) =>
@@ -239,7 +269,6 @@ export default function BoardView({
 
     let newCards = [...cards];
 
-    // Reorder within the same list if dropped over a card
     const overCard = cards.find((c) => c.id === overId);
     if (
       overCard &&
@@ -259,7 +288,6 @@ export default function BoardView({
       });
     }
 
-    // Normalize positions in every list
     lists.forEach((list) => {
       const listCards = newCards
         .filter((c) => c.list_id === list.id)
@@ -272,7 +300,6 @@ export default function BoardView({
 
     setCards(newCards);
 
-    // Persist all moved cards to Supabase
     const updates = newCards.map((c) =>
       supabase
         .from("cards")
@@ -283,101 +310,112 @@ export default function BoardView({
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex-1 overflow-x-auto p-6">
-        <div className="flex gap-4 h-full items-start">
-          {lists.map((list) => {
-            const listCards = cards
-              .filter((c) => c.list_id === list.id)
-              .sort((a, b) => a.position - b.position);
+    <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex-1 overflow-x-auto p-6">
+          <div className="flex gap-4 h-full items-start">
+            {lists.map((list) => {
+              const listCards = cards
+                .filter((c) => c.list_id === list.id)
+                .sort((a, b) => a.position - b.position);
 
-            return (
-              <div
-                key={list.id}
-                className="w-72 shrink-0 bg-surface border border-border rounded-2xl flex flex-col max-h-full"
-              >
-                <div className="px-4 py-3 flex items-center justify-between">
-                  <h3 className="font-semibold text-text-primary text-sm">
-                    {list.title}
-                  </h3>
-                  <span className="text-xs text-muted bg-surface-2 px-2 py-0.5 rounded-full">
-                    {listCards.length}
-                  </span>
-                </div>
-
-                <SortableContext
-                  items={listCards.map((c) => c.id)}
-                  strategy={verticalListSortingStrategy}
+              return (
+                <div
+                  key={list.id}
+                  className="w-72 shrink-0 bg-surface border border-border rounded-2xl flex flex-col max-h-full"
                 >
-                  <ListDropArea listId={list.id}>
-                    {listCards.map((card) => (
-                      <CardItem
-                        key={card.id}
-                        card={card}
-                        onDelete={handleDeleteCard}
-                      />
-                    ))}
+                  <div className="px-4 py-3 flex items-center justify-between">
+                    <h3 className="font-semibold text-text-primary text-sm">
+                      {list.title}
+                    </h3>
+                    <span className="text-xs text-muted bg-surface-2 px-2 py-0.5 rounded-full">
+                      {listCards.length}
+                    </span>
+                  </div>
 
-                    {addingCardTo === list.id ? (
-                      <div className="bg-surface-2 border border-primary rounded-xl p-3">
-                        <input
-                          type="text"
-                          value={newCardTitle}
-                          onChange={(e) => setNewCardTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleAddCard(list.id);
-                            if (e.key === "Escape") {
-                              setAddingCardTo(null);
-                              setNewCardTitle("");
-                            }
-                          }}
-                          placeholder="Card title..."
-                          autoFocus
-                          className="w-full bg-transparent text-text-primary text-sm placeholder-muted focus:outline-none"
+                  <SortableContext
+                    items={listCards.map((c) => c.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <ListDropArea listId={list.id}>
+                      {listCards.map((card) => (
+                        <CardItem
+                          key={card.id}
+                          card={card}
+                          onDelete={handleDeleteCard}
+                          onClick={() => setSelectedCard(card)}
                         />
-                        <div className="flex gap-2 mt-3">
-                          <button
-                            onClick={() => handleAddCard(list.id)}
-                            className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-medium rounded-lg transition-all duration-200"
-                          >
-                            Add
-                          </button>
-                          <button
-                            onClick={() => {
-                              setAddingCardTo(null);
-                              setNewCardTitle("");
-                            }}
-                            className="px-3 py-1.5 text-text-secondary hover:text-text-primary text-xs transition-colors duration-200"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setAddingCardTo(list.id)}
-                        className="text-left px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-2 rounded-xl text-sm transition-all duration-200"
-                      >
-                        + Add a card
-                      </button>
-                    )}
-                  </ListDropArea>
-                </SortableContext>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                      ))}
 
-      <DragOverlay>
-        {activeCard ? <CardItem card={activeCard} isOverlay /> : null}
-      </DragOverlay>
-    </DndContext>
+                      {addingCardTo === list.id ? (
+                        <div className="bg-surface-2 border border-primary rounded-xl p-3">
+                          <input
+                            type="text"
+                            value={newCardTitle}
+                            onChange={(e) => setNewCardTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleAddCard(list.id);
+                              if (e.key === "Escape") {
+                                setAddingCardTo(null);
+                                setNewCardTitle("");
+                              }
+                            }}
+                            placeholder="Card title..."
+                            autoFocus
+                            className="w-full bg-transparent text-text-primary text-sm placeholder-muted focus:outline-none"
+                          />
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => handleAddCard(list.id)}
+                              className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-medium rounded-lg transition-all duration-200"
+                            >
+                              Add
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAddingCardTo(null);
+                                setNewCardTitle("");
+                              }}
+                              className="px-3 py-1.5 text-text-secondary hover:text-text-primary text-xs transition-colors duration-200"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingCardTo(list.id)}
+                          className="text-left px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-2 rounded-xl text-sm transition-all duration-200"
+                        >
+                          + Add a card
+                        </button>
+                      )}
+                    </ListDropArea>
+                  </SortableContext>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <DragOverlay>
+          {activeCard ? <CardItem card={activeCard} isOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
+
+      {selectedCard && (
+        <CardModal
+          card={selectedCard}
+          onClose={() => setSelectedCard(null)}
+          onUpdate={handleUpdateCard}
+        />
+      )}
+    </>
   );
 }
