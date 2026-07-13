@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   DndContext,
@@ -183,6 +183,36 @@ export default function BoardView({
   const [addingCardTo, setAddingCardTo] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`board-${boardId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cards" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newCard = payload.new as Card;
+            setCards((prev) =>
+              prev.some((c) => c.id === newCard.id) ? prev : [...prev, newCard],
+            );
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as Card;
+            setCards((prev) =>
+              prev.map((c) => (c.id === updated.id ? updated : c)),
+            );
+          } else if (payload.eventType === "DELETE") {
+            const deleted = payload.old as Card;
+            setCards((prev) => prev.filter((c) => c.id !== deleted.id));
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [boardId, supabase]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
@@ -203,7 +233,9 @@ export default function BoardView({
       .single();
 
     if (!error && card) {
-      setCards([...cards, card]);
+      setCards((prev) =>
+        prev.some((c) => c.id === card.id) ? prev : [...prev, card],
+      );
       setNewCardTitle("");
       setAddingCardTo(null);
     }
@@ -212,12 +244,12 @@ export default function BoardView({
   const handleDeleteCard = async (cardId: string) => {
     const { error } = await supabase.from("cards").delete().eq("id", cardId);
     if (!error) {
-      setCards(cards.filter((c) => c.id !== cardId));
+      setCards((prev) => prev.filter((c) => c.id !== cardId));
     }
   };
 
   const handleUpdateCard = (updated: Card) => {
-    setCards(cards.map((c) => (c.id === updated.id ? updated : c)));
+    setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
   };
 
   const handleDragStart = (event: DragStartEvent) => {
